@@ -1,9 +1,9 @@
-import { createClient, type RedisClientType } from 'redis';
-import type { ServiceAdapter, Status } from '../types.js';
+import { createClient, type RedisClientType } from "redis";
+import type { ServiceAdapter, Status } from "../types.js";
 
 type RedisCfg = {
-  host?: string;         // default 127.0.0.1
-  port?: number;         // default 6379
+  host?: string; // default 127.0.0.1
+  port?: number; // default 6379
   password?: string;
   db?: number;
   // optional unix socket path if you prefer
@@ -19,30 +19,47 @@ function toFloat32Buffer(input: number[] | Float32Array): Buffer {
 
 async function ftList(client: RedisClientType): Promise<string[]> {
   try {
-    return await client.sendCommand<string[]>(['FT._LIST']);
+    return await client.sendCommand<string[]>(["FT._LIST"]);
   } catch {
     return []; // RediSearch may not be installed
   }
 }
 
-async function ftInfo(client: RedisClientType, index: string): Promise<Record<string, unknown>> {
-  const raw = await client.sendCommand<(string | number | unknown[])[]>(['FT.INFO', index]);
+async function ftInfo(
+  client: RedisClientType,
+  index: string,
+): Promise<Record<string, unknown>> {
+  const raw = await client.sendCommand<(string | number | unknown[])[]>([
+    "FT.INFO",
+    index,
+  ]);
   const out: Record<string, unknown> = {};
   for (let i = 0; i < raw.length - 1; i += 2) out[String(raw[i])] = raw[i + 1];
   return out;
 }
 
 export class RedisService implements ServiceAdapter {
-  readonly kind = 'redis';
+  readonly kind = "redis";
 
   constructor(private cfg: RedisCfg = {}) {}
 
   private async client(): Promise<RedisClientType> {
-    const { host = '127.0.0.1', port = 6379, password, db = 0, socketPath } = this.cfg;
-    const url = socketPath ? `redis+socket://${encodeURIComponent(socketPath)}` : `redis://${host}:${port}`;
+    const {
+      host = "127.0.0.1",
+      port = 6379,
+      password,
+      db = 0,
+      socketPath,
+    } = this.cfg;
+    const url = socketPath
+      ? `redis+socket://${encodeURIComponent(socketPath)}`
+      : `redis://${host}:${port}`;
     const client = createClient({ url, password, database: db });
-    client.on('error', () => { /* suppress noisy event */ });
+    client.on("error", () => {
+      /* suppress noisy event */
+    });
     await client.connect();
+    //@ts-expect-error
     return client;
   }
 
@@ -50,17 +67,22 @@ export class RedisService implements ServiceAdapter {
     let client: RedisClientType | undefined;
     try {
       client = await this.client();
-      const [ping, dbsize, server, memory, replication, modules, searchIdx] = await Promise.all([
-        client.ping(),
-        client.dbSize(),
-        client.info('server'),
-        client.info('memory'),
-        client.info('replication'),
-        (async () => {
-          try { return await client.sendCommand(['MODULE', 'LIST']); } catch { return []; }
-        })(),
-        ftList(client),
-      ]);
+      const [ping, dbsize, server, memory, replication, modules, searchIdx] =
+        await Promise.all([
+          client.ping(),
+          client.dbSize(),
+          client.info("server"),
+          client.info("memory"),
+          client.info("replication"),
+          (async () => {
+            try {
+              return await client.sendCommand(["MODULE", "LIST"]);
+            } catch {
+              return [];
+            }
+          })(),
+          ftList(client),
+        ]);
 
       return {
         ok: true,
@@ -80,7 +102,7 @@ export class RedisService implements ServiceAdapter {
 
   async restart() {
     // Not supported without an infra provider / service manager.
-    return { message: 'Restart not supported', providerStatus: 'success' }
+    return { message: "Restart not supported", providerStatus: "success" };
   }
 
   /**
@@ -100,70 +122,87 @@ export class RedisService implements ServiceAdapter {
       client = await this.client();
 
       switch (name) {
-        case 'keys': {
-          const pattern = payload?.pattern ?? '*';
+        case "keys": {
+          const pattern = payload?.pattern ?? "*";
           return await client.keys(pattern);
         }
-        case 'get': {
+        case "get": {
           const { key } = payload ?? {};
-          if (!key) throw new Error('Missing key');
+          if (!key) throw new Error("Missing key");
           return await client.get(key);
         }
-        case 'set': {
+        case "set": {
           const { key, value, ex } = payload ?? {};
-          if (!key) throw new Error('Missing key');
-          if (typeof value === 'undefined') throw new Error('Missing value');
-          return ex ? client.set(key, value, { EX: Number(ex) }) : client.set(key, value);
+          if (!key) throw new Error("Missing key");
+          if (typeof value === "undefined") throw new Error("Missing value");
+          return ex
+            ? client.set(key, value, { EX: Number(ex) })
+            : client.set(key, value);
         }
-        case 'del': {
+        case "del": {
           const { keys } = payload ?? {};
-          if (!Array.isArray(keys) || keys.length === 0) throw new Error('Missing keys');
+          if (!Array.isArray(keys) || keys.length === 0)
+            throw new Error("Missing keys");
           return await client.del(keys);
         }
 
-        case 'ft_list': {
+        case "ft_list": {
           return await ftList(client);
         }
-        case 'ft_info': {
+        case "ft_info": {
           const { index } = payload ?? {};
-          if (!index) throw new Error('Missing index');
+          if (!index) throw new Error("Missing index");
           return await ftInfo(client, index);
         }
-        case 'ft_search': {
+        case "ft_search": {
           const { index, query, options } = payload ?? {};
-          if (!index) throw new Error('Missing index');
-          if (typeof query !== 'string') throw new Error('Missing query');
-          const args = ['FT.SEARCH', index, query, ...(Array.isArray(options) ? options : [])];
+          if (!index) throw new Error("Missing index");
+          if (typeof query !== "string") throw new Error("Missing query");
+          const args = [
+            "FT.SEARCH",
+            index,
+            query,
+            ...(Array.isArray(options) ? options : []),
+          ];
           return await client.sendCommand(args);
         }
 
         // Milvus-style alias: vector search via RediSearch KNN
-        case 'search': {
+        case "search": {
           const {
             index,
             query_vectors,
-            vector_field = 'vector',
+            vector_field = "vector",
             top_k = 5,
             return_fields = [],
           } = payload ?? {};
 
-          if (!index) throw new Error('Missing index');
-          if (!query_vectors) throw new Error('Missing query_vectors');
+          if (!index) throw new Error("Missing index");
+          if (!query_vectors) throw new Error("Missing query_vectors");
 
           const blob = toFloat32Buffer(query_vectors);
 
           const query = `*=>[KNN ${Number(top_k)} @${vector_field} $BLOB AS vector_score]`;
 
           const args: (string | number | Buffer)[] = [
-            'FT.SEARCH', index, query,
-            'PARAMS', '2', 'BLOB', blob,
-            'SORTBY', 'vector_score', 'ASC',
-            'RETURN', String((return_fields?.length ?? 0) + 1),
-            'vector_score',
+            "FT.SEARCH",
+            index,
+            query,
+            "PARAMS",
+            "2",
+            "BLOB",
+            blob,
+            "SORTBY",
+            "vector_score",
+            "ASC",
+            "RETURN",
+            String((return_fields?.length ?? 0) + 1),
+            "vector_score",
             ...(return_fields || []),
-            'DIALECT', '2',
+            "DIALECT",
+            "2",
           ];
-
+          //@ts-expect-error
           return await client.sendCommand(args);
         }
 
