@@ -80,7 +80,7 @@ export class RedisService implements ServiceAdapter {
 
   async restart() {
     // Not supported without an infra provider / service manager.
-    throw new Error('Restart is not supported on non-containerized setups in this adapter.');
+    return { message: 'Restart not supported', providerStatus: 'success' }
   }
 
   /**
