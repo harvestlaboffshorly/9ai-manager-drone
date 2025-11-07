@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "9ai-drone",
       script: "dist/server.js",
-      cwd: "/apps/9ai-manager-drone",
+      cwd: "./",
       env: {
         NODE_ENV: "production",
       },
