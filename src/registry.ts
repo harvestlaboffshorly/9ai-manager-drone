@@ -27,8 +27,16 @@ if (ENABLE_MILVUS) {
     adapter: new MilvusService(
       {
         host: process.env.MILVUS_HOST || "127.0.0.1",
-        port: Number(process.env.MILVUS_PORT || 19530),
+        port: Number(process.env.MILVUS_PORT || "19530"),
+        username: process.env.MILVUS_USERNAME,
+        password: process.env.MILVUS_PASSWORD,
+        db: process.env.MILVUS_DB,
         containerName: process.env.MILVUS_CONTAINER_NAME || "milvus-standalone",
+        ssl: /^(true|1)$/i.test(process.env.MILVUS_SSL || ""),
+        tlsCaPemPath: process.env.MILVUS_TLS_CA_PEM,
+        clientCertPath: process.env.MILVUS_TLS_CLIENT_CERT,
+        clientKeyPath: process.env.MILVUS_TLS_CLIENT_KEY,
+        sniServername: process.env.MILVUS_SNI_SERVERNAME,
       },
       docker,
     ),

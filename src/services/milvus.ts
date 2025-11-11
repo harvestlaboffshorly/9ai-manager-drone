@@ -13,6 +13,11 @@ type Cfg = {
   // Optional behavior
   warmupRetries?: number; // tries after restart
   warmupBackoffMs?: number; // wait between retries
+  tlsCaPemPath?: string;
+  clientCertPath?: string;
+  clientKeyPath?: string;
+  sniServername?: string;
+  ssl?: boolean;
 };
 
 export class MilvusService implements ServiceAdapter {
@@ -27,12 +32,19 @@ export class MilvusService implements ServiceAdapter {
   }
 
   private client() {
+    const tls: any = {};
+    if (this.cfg.tlsCaPemPath) tls.rootCertPath = this.cfg.tlsCaPemPath;
+    if (this.cfg.clientCertPath) tls.certChainPath = this.cfg.clientCertPath; // mTLS only
+    if (this.cfg.clientKeyPath) tls.privateKeyPath = this.cfg.clientKeyPath; // mTLS only
+    if (this.cfg.sniServername) tls.serverName = this.cfg.sniServername;
+
     return new MilvusClient({
-      address: this.address(),
+      address: `${this.cfg.host}:${this.cfg.port}`,
+      ssl: !!this.cfg.ssl, // enable TLS
+      tls: Object.keys(tls).length ? tls : undefined,
       username: this.cfg.username || undefined,
       password: this.cfg.password || undefined,
       database: this.cfg.db || undefined,
-      ssl: false,
       logLevel: "error",
     });
   }
