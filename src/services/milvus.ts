@@ -185,10 +185,37 @@ export class MilvusService implements ServiceAdapter {
           metric_type,
           params,
           output_fields,
-          // TODO: fix
           data: [],
         });
         return res.results;
+      }
+
+      case "delete_by_ids": {
+        const { collection_name, ids, id_field = "id" } = payload ?? {};
+
+        if (!collection_name) {
+          throw new Error("collection_name is required");
+        }
+        if (!Array.isArray(ids) || ids.length === 0) {
+          throw new Error("ids (non-empty array) is required");
+        }
+
+        // normalize:
+        // - [1,2,3]
+        // - ["1","2","3"]
+        // - [ { N: "1" }, { N: "2" } ]
+        const normalizedIds = ids.map((v: any) => {
+          if (v && typeof v === "object" && "N" in v) {
+            return v.N;
+          }
+          return String(v);
+        });
+
+        const res = await client.delete({
+          collection_name,
+          ids: normalizedIds,
+        });
+        return res;
       }
 
       default:
